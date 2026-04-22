@@ -31,16 +31,9 @@ GenerateApiDocs(app.Logger);
 if (!app.Environment.IsProduction())
     app.UseHttpsRedirection();
 
-// Serwuj frontend (React build → wwwroot/)
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
-
-// SPA fallback — wszystkie trasy nieznane przekieruj do index.html
-app.MapFallbackToFile("index.html");
 
 app.Run();
 
