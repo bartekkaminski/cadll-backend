@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <UserSecretsId>cc1ef1e4-0885-41c9-95c3-89fa0284fcf0</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>.</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" GeneratePathProperty="true">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
+    <PackageReference Include="OpenAI" Version="2.*" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ZwDatabaseMgd">
+      <HintPath>Libraries\Zwcad\ZwDatabaseMgd.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ZwManaged">
+      <HintPath>Libraries\Zwcad\ZwManaged.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Libraries\Zwcad\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>Libraries\Zwcad\%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Data\" />
+    <Folder Include="Libraries\Autocad\" />
+    <Folder Include="Libraries\Zwcad\" />
+    <Folder Include="Models\" />
+    <Folder Include="Services\" />
+    <Folder Include="Templates\Autocad\" />
+  </ItemGroup>
+
+  <!-- Kopiuj assemblies .NET Framework 4.8 do OutDir (build) -->
+  <Target Name="CopyNetFx48Refs" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NetFx48Files Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NetFx48Files)"
+          DestinationFolder="$(OutDir)NetFx48\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Kopiuj assemblies .NET Framework 4.8 do PublishDir (dotnet publish) -->
+  <Target Name="CopyNetFx48RefsOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <NetFx48FilesPublish Include="$(PkgMicrosoft_NETFramework_ReferenceAssemblies_net48)\build\.NETFramework\v4.8\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NetFx48FilesPublish)"
+          DestinationFolder="$(PublishDir)NetFx48\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
