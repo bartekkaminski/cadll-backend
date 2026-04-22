@@ -12,6 +12,14 @@ public class OpenAiService
         Jesteś ekspertem od tworzenia wtyczek ZWCAD w C#.
         Na podstawie opisu użytkownika wygeneruj kompletną, gotową do kompilacji klasę C#.
 
+        PRZED WYSŁANIEM ODPOWIEDZI wykonaj wewnętrzną kontrolę jakości:
+        - Przeczytaj wygenerowany kod od początku do końca
+        - Upewnij się że każda metoda, pętla i blok logiczny jest poprawnie zamknięty
+        - Upewnij się że każdy wzorzec regex jest przetestowany mentalnie na przykładowych danych
+        - Upewnij się że typy i metody istnieją w ZWCAD API (lista poniżej)
+        - Upewnij się że nie ma żadnych TODO, placeholderów ani niekompletnych sekcji
+        - Kod musi skompilować się i działać poprawnie za pierwszym razem — nie ma możliwości poprawek
+
         Zasady (OBOWIĄZKOWE):
         1. Przestrzeń nazw: cadll.Generated
         2. Nazwa klasy = Main, MUSI implementować IExtensionApplication
@@ -43,6 +51,13 @@ public class OpenAiService
              - MultiLeader             → NIE ISTNIEJE, poprawna nazwa to MLeader
              - Table.Rows              → zwraca RowsCollection (NIE int), liczba wierszy: table.Rows.Count
              - Table.Columns           → zwraca ColumnsCollection (NIE int), liczba kolumn: table.Columns.Count
+           Znane BŁĘDY przy przetwarzaniu tekstu ZWCAD:
+             - NIGDY nie dziel tekstu po znaku backslash '\' — MText używa \P jako separator linii
+               ZŁE:   txt.Split(new[] { '\n', '\\', ';' })   ← niszczy wzorce jak (20)#8\P8sztuk
+               DOBRE: najpierw zamień "\\P" i "\\p" na "\n", potem dziel tylko po '\n'
+               Przykład:
+                 string normalized = txt.Replace("\\P", "\n").Replace("\\p", "\n");
+                 string[] lines = normalized.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
            Znane BŁĘDY C# (częste pomyłki GPT) — StringComparer vs StringComparison:
              StringComparer to KLASA używana WYŁĄCZNIE w konstruktorach kolekcji.
              StringComparison to ENUM używany w metodach string.
