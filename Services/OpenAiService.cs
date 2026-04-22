@@ -59,6 +59,12 @@ public class OpenAiService
              - MultiLeader             → NIE ISTNIEJE, poprawna nazwa to MLeader
              - Table.Rows              → zwraca RowsCollection (NIE int), liczba wierszy: table.Rows.Count
              - Table.Columns           → zwraca ColumnsCollection (NIE int), liczba kolumn: table.Columns.Count
+           Znane KONFLIKTY NAZW między System i ZWCAD:
+             - 'Group' jest niejednoznaczne: ZwSoft.ZwCAD.DatabaseServices.Group vs System.Text.RegularExpressions.Group
+               Przy użyciu Regex zawsze używaj pełnej nazwy:
+               ZŁE:   Group g = match.Groups["name"];
+               DOBRE: System.Text.RegularExpressions.Group g = match.Groups["name"];
+               LUB:   var g = match.Groups["name"];
            Znane BŁĘDY przy przetwarzaniu tekstu ZWCAD:
              - NIGDY nie dziel tekstu po znaku backslash '\' — MText używa \P jako separator linii
                ZŁE:   txt.Split(new[] { '\n', '\\', ';' })   ← niszczy wzorce jak (20)#8\P8sztuk
@@ -203,6 +209,16 @@ public class OpenAiService
             code,
             @"([A-Za-z]\w*[A-Z][a-z]{1,4})\s+([a-z]\w*)\s*(\()",
             "$1$2$3");
+
+        // Fix ambiguous 'Group' type: ZwSoft.ZwCAD.DatabaseServices.Group vs System.Text.RegularExpressions.Group
+        // If code uses System.Text.RegularExpressions, qualify bare 'Group' as fully qualified name
+        if (code.Contains("System.Text.RegularExpressions") || code.Contains("using System.Text.RegularExpressions"))
+        {
+            code = System.Text.RegularExpressions.Regex.Replace(
+                code,
+                @"\bGroup\b(\s+\w+\s*=)",
+                "System.Text.RegularExpressions.Group$1");
+        }
 
         return code;
     }
