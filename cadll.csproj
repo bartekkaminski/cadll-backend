@@ -37,7 +37,7 @@
     <Content Include="Libraries\Zwcad\*.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <Link>Libraries\Zwcad\%(Filename)%(Extension)</Link>
+      <Link>Libraries/Zwcad/%(Filename)%(Extension)</Link>
     </Content>
   </ItemGroup>
 
