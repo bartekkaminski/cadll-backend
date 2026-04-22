@@ -20,10 +20,9 @@ public class OpenAiService
         - Upewnij się że nie ma żadnych TODO, placeholderów ani niekompletnych sekcji
         - Kod musi skompilować się i działać poprawnie za pierwszym razem — nie ma możliwości poprawek
 
-        LANGUAGE RULE (MANDATORY):
-        All code must be written entirely in English:
+        LANGUAGE AND COMMENTS RULE (MANDATORY):
+        - NO COMMENTS anywhere in the code — not a single // or /* */ line
         - All method names, variable names, field names, class names — English only
-        - All comments — English only
         - All string messages written to the editor (ed.WriteMessage) — English only
         - NO Polish, NO other language anywhere in the code
         - Identifiers must be valid C# identifiers: no spaces, no special characters, no Polish letters (ą,ę,ó,ś,ź,ż,ć,ń,ł)
@@ -59,6 +58,13 @@ public class OpenAiService
              - MultiLeader             → NIE ISTNIEJE, poprawna nazwa to MLeader
              - Table.Rows              → zwraca RowsCollection (NIE int), liczba wierszy: table.Rows.Count
              - Table.Columns           → zwraca ColumnsCollection (NIE int), liczba kolumn: table.Columns.Count
+           Znane BŁĘDY FORMATOWANIA kodu:
+             - NIGDY nie łącz komentarza z następną linią kodu — komentarz MUSI kończyć się przed instrukcją
+               ZŁE:   // DBTextif(ent is DBText dbt)    ← komentarz i if na jednej linii!
+               ZŁE:   // DimensionTextif(!string.IsNullOrEmpty(dim.DimensionText))
+               DOBRE: // DBText
+                      if (ent is DBText dbt)
+             - Każda instrukcja (if, foreach, while) musi być na OSOBNEJ linii
            Znane KONFLIKTY NAZW między System i ZWCAD:
              - 'Group' jest niejednoznaczne: ZwSoft.ZwCAD.DatabaseServices.Group vs System.Text.RegularExpressions.Group
                Przy użyciu Regex zawsze używaj pełnej nazwy:
@@ -171,6 +177,27 @@ public class OpenAiService
         return FixCommonMistakes(code);
     }
 
+    public async Task<string> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors)
+    {
+        var errorList = string.Join("\n", errors.Select((e, i) => $"{i + 1}. {e}"));
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(
+                "You are a C# expert. Fix the compilation errors in the provided code. " +
+                "Return ONLY the corrected code in a ```csharp block. No comments, no explanations."),
+            new UserChatMessage(
+                $"The following C# code has compilation errors:\n\n```csharp\n{brokenCode}\n```\n\n" +
+                $"Errors:\n{errorList}\n\n" +
+                "Fix all errors. Return only the corrected ```csharp code block.")
+        };
+
+        var response = await _chat.CompleteChatAsync(messages);
+        var text = response.Value.Content[0].Text;
+        var code = ExtractCodeBlock(text);
+        return FixCommonMistakes(code);
+    }
+
     // Automatyczna korekta typowych pomyłek GPT żeby nie blokować kompilacji
     private static string FixCommonMistakes(string code)
     {
@@ -219,6 +246,14 @@ public class OpenAiService
                 @"\bGroup\b(\s+\w+\s*=)",
                 "System.Text.RegularExpressions.Group$1");
         }
+
+        // Fix comment merged with next line: "// SomeTextif(" → "// SomeText\n            if("
+        // GPT sometimes puts a comment and the following if-statement on the same line
+        code = System.Text.RegularExpressions.Regex.Replace(
+            code,
+            @"^( *)(//[^\n]+?)((?:if|else if|foreach|while|for)\s*[\(\{])",
+            "$1$2\n$1$3",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
 
         return code;
     }

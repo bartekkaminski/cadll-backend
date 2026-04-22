@@ -10,6 +10,8 @@ public class GenerateController(
     CompilerService compiler,
     ILogger<GenerateController> logger) : ControllerBase
 {
+    private const int MaxRetries = 2;
+
     [HttpPost("api/generate")]
     public async Task<IActionResult> Generate([FromBody] GenerateRequest request)
     {
@@ -30,18 +32,41 @@ public class GenerateController(
                 "=== WYGENEROWANY KOD [{Name}] ===\n{Code}\n=== KONIEC KODU ===",
                 request.FunctionName, code);
 
-            var dll = await compiler.CompileAsync(code, request.FunctionName);
+            for (int attempt = 1; attempt <= MaxRetries; attempt++)
+            {
+                try
+                {
+                    var dll = await compiler.CompileAsync(code, request.FunctionName);
+                    logger.LogInformation("<<< Sukces: {Name}.dll ({Size} bajtów) — próba {Attempt}",
+                        request.FunctionName, dll.Length, attempt);
+                    return File(dll, "application/octet-stream", $"{request.FunctionName}.dll");
+                }
+                catch (CompilationException ex) when (attempt < MaxRetries)
+                {
+                    logger.LogWarning(
+                        "Próba {Attempt}/{Max} nieudana [{Name}]. Błędy:\n{Errors}\nPonawiam z GPT...",
+                        attempt, MaxRetries, request.FunctionName,
+                        string.Join("\n", ex.Errors));
 
-            logger.LogInformation("<<< Sukces: {Name}.dll ({Size} bajtów)",
-                request.FunctionName, dll.Length);
+                    code = await openAi.FixCodeAsync(code, ex.Errors);
 
-            return File(dll, "application/octet-stream", $"{request.FunctionName}.dll");
+                    logger.LogInformation(
+                        "=== POPRAWIONY KOD [{Name}] (próba {Next}) ===\n{Code}\n=== KONIEC ===",
+                        request.FunctionName, attempt + 1, code);
+                }
+            }
+
+            // Ostatnia próba — pozwól wyjątkowi się propagować
+            var finalDll = await compiler.CompileAsync(code, request.FunctionName);
+            logger.LogInformation("<<< Sukces: {Name}.dll ({Size} bajtów) — ostatnia próba",
+                request.FunctionName, finalDll.Length);
+            return File(finalDll, "application/octet-stream", $"{request.FunctionName}.dll");
         }
         catch (CompilationException ex)
         {
             logger.LogWarning(
-                "<<< Błąd kompilacji [{Name}]:\n{Errors}\n\nKod:\n{Code}",
-                request.FunctionName,
+                "<<< Błąd kompilacji [{Name}] po {Max} próbach:\n{Errors}\n\nKod:\n{Code}",
+                request.FunctionName, MaxRetries,
                 string.Join("\n", ex.Errors),
                 code ?? "(brak kodu)");
 

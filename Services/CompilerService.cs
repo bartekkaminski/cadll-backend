@@ -22,6 +22,19 @@ public class CompilerService(ILogger<CompilerService> logger)
 
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
 
+        // Szybki pre-check składni — bez referencji, błyskawiczny
+        var syntaxErrors = syntaxTree.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => d.GetMessage())
+            .ToList();
+
+        if (syntaxErrors.Count > 0)
+        {
+            logger.LogWarning("Błędy składni (pre-check, bez kompilacji):\n{Errors}",
+                string.Join("\n", syntaxErrors));
+            throw new CompilationException(syntaxErrors);
+        }
+
         if (!Directory.Exists(NetFx48Dir))
             throw new InvalidOperationException(
                 $"Brak katalogu NetFx48/ w: {NetFx48Dir}");
