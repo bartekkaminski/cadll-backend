@@ -19,28 +19,37 @@ public class GenerateController(
         if (string.IsNullOrWhiteSpace(request.Prompt))
             return BadRequest(new { error = "Prompt jest wymagany." });
 
+        logger.LogInformation(">>> Nowe żądanie: funkcja={Name}", request.FunctionName);
+
         string? code = null;
         try
         {
             code = await openAi.GenerateFunctionCodeAsync(request.FunctionName, request.Prompt);
 
-            logger.LogDebug("=== WYGENEROWANY KOD [{Name}] ===\n{Code}\n=== KONIEC KODU ===",
+            logger.LogInformation(
+                "=== WYGENEROWANY KOD [{Name}] ===\n{Code}\n=== KONIEC KODU ===",
                 request.FunctionName, code);
 
             var dll = await compiler.CompileAsync(code, request.FunctionName);
+
+            logger.LogInformation("<<< Sukces: {Name}.dll ({Size} bajtów)",
+                request.FunctionName, dll.Length);
+
             return File(dll, "application/octet-stream", $"{request.FunctionName}.dll");
         }
         catch (CompilationException ex)
         {
-            if (code is not null)
-                logger.LogWarning("Kompilacja nieudana [{Name}]. Błędy:\n{Errors}\n\nKod:\n{Code}",
-                    request.FunctionName,
-                    string.Join("\n", ex.Errors),
-                    code);
+            logger.LogWarning(
+                "<<< Błąd kompilacji [{Name}]:\n{Errors}\n\nKod:\n{Code}",
+                request.FunctionName,
+                string.Join("\n", ex.Errors),
+                code ?? "(brak kodu)");
+
             return UnprocessableEntity(new { errors = ex.Errors });
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "<<< Nieoczekiwany błąd [{Name}]", request.FunctionName);
             return StatusCode(500, new { error = ex.Message });
         }
     }

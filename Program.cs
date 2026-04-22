@@ -25,38 +25,36 @@ builder.Services.AddScoped<CompilerService>();
 
 var app = builder.Build();
 
-GenerateApiDocs(app.Logger);
-
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
-app.Run();
-
-static void GenerateApiDocs(ILogger logger)
+// Endpoint diagnostyczny — sprawdź czy pliki są na miejscu
+app.MapGet("/api/diag", () =>
 {
-    try
-    {
-        var zwcadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", "Zwcad");
-        var apiSummary = ZwcadApiService.GetApiSummary(zwcadDir);
+    var baseDir = AppContext.BaseDirectory;
+    var netFx48Dir = Path.Combine(baseDir, "NetFx48");
+    var zwcadDir = Path.Combine(baseDir, "Libraries", "Zwcad");
 
-        var docsPath = Path.Combine(AppContext.BaseDirectory, "zwcad-api-docs.md");
-        var content = $"""
-            # ZWCAD API — dokumentacja wysyłana do GPT
-            
-            Wygenerowano: {DateTime.Now:yyyy-MM-dd HH:mm:ss}
-            Źródło DLL: `{zwcadDir}`
-            
-            ---
-            
-            {apiSummary}
-            """;
-
-        File.WriteAllText(docsPath, content);
-        logger.LogInformation("Dokumentacja ZWCAD API zapisana: {Path}", docsPath);
-    }
-    catch (Exception ex)
+    return Results.Ok(new
     {
-        logger.LogWarning("Nie można wygenerować dokumentacji API: {Message}", ex.Message);
-    }
-}
+        baseDir,
+        netFx48 = new
+        {
+            path = netFx48Dir,
+            exists = Directory.Exists(netFx48Dir),
+            dllCount = Directory.Exists(netFx48Dir)
+                ? Directory.GetFiles(netFx48Dir, "*.dll").Length : 0
+        },
+        zwcad = new
+        {
+            path = zwcadDir,
+            exists = Directory.Exists(zwcadDir),
+            files = Directory.Exists(zwcadDir)
+                ? Directory.GetFiles(zwcadDir, "*.dll").Select(Path.GetFileName).ToArray()
+                : []
+        }
+    });
+});
+
+app.Run();
