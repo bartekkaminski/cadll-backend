@@ -137,11 +137,12 @@ public class OpenAiService
 
     public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt)
     {
-        var apiSummary = ZwcadApiService.GetApiSummary(_zwcadDllDir);
+        // var apiSummary = ZwcadApiService.GetApiSummary(_zwcadDllDir);
 
         var systemMsg = SystemPromptTemplate
             .Replace("{FUNCTION_NAME}", functionName)
-            .Replace("{ZWCAD_API}", $"=== ZWCAD API ===\n{apiSummary}");
+            // .Replace("{ZWCAD_API}", $"=== ZWCAD API ===\n{apiSummary}");
+            .Replace("{ZWCAD_API}", "");
 
         var messages = new List<ChatMessage>
         {
