@@ -20,6 +20,14 @@ public class OpenAiService
         - Upewnij się że nie ma żadnych TODO, placeholderów ani niekompletnych sekcji
         - Kod musi skompilować się i działać poprawnie za pierwszym razem — nie ma możliwości poprawek
 
+        LANGUAGE RULE (MANDATORY):
+        All code must be written entirely in English:
+        - All method names, variable names, field names, class names — English only
+        - All comments — English only
+        - All string messages written to the editor (ed.WriteMessage) — English only
+        - NO Polish, NO other language anywhere in the code
+        - Identifiers must be valid C# identifiers: no spaces, no special characters, no Polish letters (ą,ę,ó,ś,ź,ż,ć,ń,ł)
+
         Zasady (OBOWIĄZKOWE):
         1. Przestrzeń nazw: cadll.Generated
         2. Nazwa klasy = Main, MUSI implementować IExtensionApplication
@@ -131,7 +139,7 @@ public class OpenAiService
             ?? throw new InvalidOperationException(
                 "Brak zmiennej środowiskowej OPENAI_API_KEY. " +
                 "Ustaw ją przed uruchomieniem aplikacji.");
-        _chat = new OpenAIClient(key).GetChatClient("gpt-5.4");
+        _chat = new OpenAIClient(key).GetChatClient("gpt-5");
         _zwcadDllDir = Path.Combine(AppContext.BaseDirectory, "Libraries", "Zwcad");
     }
 
@@ -188,6 +196,13 @@ public class OpenAiService
             code,
             @"(new\s+(?:Sorted)?Dictionary\s*<\s*\([^)]+\)[^>]*>\s*\()\s*StringComparer\.\w+\s*\)",
             "$1)");
+
+        // Fix identifiers split with a space — GPT sometimes splits long method names
+        // np. "ZnajdzPretyWTe kscie(" → "ZnajdzPretyWTekscie("
+        code = System.Text.RegularExpressions.Regex.Replace(
+            code,
+            @"([A-Za-z]\w*[A-Z][a-z]{1,4})\s+([a-z]\w*)\s*(\()",
+            "$1$2$3");
 
         return code;
     }
