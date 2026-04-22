@@ -27,10 +27,6 @@ var app = builder.Build();
 
 GenerateApiDocs(app.Logger);
 
-// HTTPS redirect tylko lokalnie — DigitalOcean App Platform kończy TLS na Load Balancerze
-if (!app.Environment.IsProduction())
-    app.UseHttpsRedirection();
-
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();

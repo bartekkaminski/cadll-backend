@@ -43,6 +43,11 @@ public class OpenAiService
              - MultiLeader             → NIE ISTNIEJE, poprawna nazwa to MLeader
              - Table.Rows              → zwraca RowsCollection (NIE int), liczba wierszy: table.Rows.Count
              - Table.Columns           → zwraca ColumnsCollection (NIE int), liczba kolumn: table.Columns.Count
+           Znane BŁĘDY C# (częste pomyłki GPT):
+             - string.Compare(a, b, StringComparer.X)  → BŁĄD, użyj StringComparison.X (enum, nie klasa)
+             - string.Equals(a, b, StringComparer.X)   → BŁĄD, użyj StringComparison.X
+             - StringComparer używaj TYLKO jako argument do konstruktorów kolekcji: new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase)
+             - Do porównań stringów: string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
 
         Wzorzec struktury (OBOWIĄZKOWY — klasa MUSI implementować IExtensionApplication):
         ```csharp
