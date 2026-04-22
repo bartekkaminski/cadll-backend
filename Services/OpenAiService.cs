@@ -43,11 +43,26 @@ public class OpenAiService
              - MultiLeader             → NIE ISTNIEJE, poprawna nazwa to MLeader
              - Table.Rows              → zwraca RowsCollection (NIE int), liczba wierszy: table.Rows.Count
              - Table.Columns           → zwraca ColumnsCollection (NIE int), liczba kolumn: table.Columns.Count
-           Znane BŁĘDY C# (częste pomyłki GPT):
-             - string.Compare(a, b, StringComparer.X)  → BŁĄD, użyj StringComparison.X (enum, nie klasa)
-             - string.Equals(a, b, StringComparer.X)   → BŁĄD, użyj StringComparison.X
-             - StringComparer używaj TYLKO jako argument do konstruktorów kolekcji: new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase)
-             - Do porównań stringów: string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+           Znane BŁĘDY C# (częste pomyłki GPT) — StringComparer vs StringComparison:
+             StringComparer to KLASA używana WYŁĄCZNIE w konstruktorach kolekcji.
+             StringComparison to ENUM używany w metodach string.
+             NIGDY nie używaj StringComparer w wywołaniach metod string — zawsze StringComparison!
+             BŁĘDNE (nie kompiluje się):
+               str.IndexOf("x", StringComparer.OrdinalIgnoreCase)     ← StringComparer zamiast int
+               string.Compare(a, b, StringComparer.OrdinalIgnoreCase) ← brak takiego przeciążenia
+               string.Equals(a, b, StringComparer.OrdinalIgnoreCase)  ← brak takiego przeciążenia
+               str.Contains("x", StringComparer.OrdinalIgnoreCase)    ← brak takiego przeciążenia
+             POPRAWNE:
+               str.IndexOf("x", StringComparison.OrdinalIgnoreCase)
+               string.Compare(a, b, StringComparison.OrdinalIgnoreCase)
+               string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+               str.Contains("x", StringComparison.OrdinalIgnoreCase)
+             StringComparer TYLKO gdy klucz to dokładnie 'string':
+               new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)   ← OK
+               new HashSet<string>(StringComparer.OrdinalIgnoreCase)           ← OK
+             NIGDY z kluczem tuple — tuple NIE jest string:
+               new Dictionary<(string, string), int>(StringComparer.OrdinalIgnoreCase) ← BŁĄD kompilacji!
+               new Dictionary<(string, string), int>()                                 ← POPRAWNE
 
         Wzorzec struktury (OBOWIĄZKOWY — klasa MUSI implementować IExtensionApplication):
         ```csharp
@@ -122,7 +137,43 @@ public class OpenAiService
 
         var response = await _chat.CompleteChatAsync(messages);
         var text = response.Value.Content[0].Text;
-        return ExtractCodeBlock(text);
+        var code = ExtractCodeBlock(text);
+        return FixCommonMistakes(code);
+    }
+
+    // Automatyczna korekta typowych pomyłek GPT żeby nie blokować kompilacji
+    private static string FixCommonMistakes(string code)
+    {
+        // StringComparer w metodach string → StringComparison
+        var methodsWithStringComparison = new[]
+        {
+            "IndexOf", "LastIndexOf", "StartsWith", "EndsWith",
+            "Contains", "Replace", "Compare", "Equals"
+        };
+
+        foreach (var method in methodsWithStringComparison)
+        {
+            // np. .IndexOf("x", StringComparer.X) → .IndexOf("x", StringComparison.X)
+            code = System.Text.RegularExpressions.Regex.Replace(
+                code,
+                $@"(\.{method}\s*\([^)]*),\s*StringComparer\.(\w+)\)",
+                $"$1, StringComparison.$2)");
+        }
+
+        // string.Compare(a, b, StringComparer.X) → string.Compare(a, b, StringComparison.X)
+        code = System.Text.RegularExpressions.Regex.Replace(
+            code,
+            @"(string\s*\.\s*(?:Compare|Equals)\s*\([^)]*),\s*StringComparer\.(\w+)\)",
+            "$1, StringComparison.$2)");
+
+        // Dictionary/SortedDictionary z kluczem tuple i StringComparer → usuń StringComparer
+        // new Dictionary<(string, string), int>(StringComparer.X) → new Dictionary<(string, string), int>()
+        code = System.Text.RegularExpressions.Regex.Replace(
+            code,
+            @"(new\s+(?:Sorted)?Dictionary\s*<\s*\([^)]+\)[^>]*>\s*\()\s*StringComparer\.\w+\s*\)",
+            "$1)");
+
+        return code;
     }
 
     private static string ExtractCodeBlock(string response)
