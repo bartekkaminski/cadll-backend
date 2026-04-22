@@ -131,7 +131,7 @@ public class OpenAiService
             ?? throw new InvalidOperationException(
                 "Brak zmiennej środowiskowej OPENAI_API_KEY. " +
                 "Ustaw ją przed uruchomieniem aplikacji.");
-        _chat = new OpenAIClient(key).GetChatClient("gpt-4.1");
+        _chat = new OpenAIClient(key).GetChatClient("gpt-5.4");
         _zwcadDllDir = Path.Combine(AppContext.BaseDirectory, "Libraries", "Zwcad");
     }
 
