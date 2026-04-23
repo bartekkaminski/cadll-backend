@@ -11,7 +11,7 @@ builder.Services.AddControllers();
 var corsOrigins = (
     Environment.GetEnvironmentVariable("CORS_ORIGINS")
     ?? builder.Configuration["CorsOrigins"]
-    ?? "http://localhost:5199"
+    ?? "http://localhost:5199,https://cadll.pl,https://www.cadll.pl"
 ).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddCors(options =>
@@ -20,41 +20,26 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod()));
 
-builder.Services.AddScoped<OpenAiService>();
+var aiProvider = (Environment.GetEnvironmentVariable("AI_PROVIDER") ?? "anthropic")
+    .ToLowerInvariant().Trim();
+
+builder.Services.AddScoped<ICodeGeneratorService>(sp =>
+{
+    var lf = sp.GetRequiredService<ILoggerFactory>();
+    return aiProvider switch
+    {
+        "openai" => (ICodeGeneratorService) new OpenAiService(lf.CreateLogger<OpenAiService>()),
+        _        => new AnthropicService(lf.CreateLogger<AnthropicService>())
+    };
+});
+
 builder.Services.AddScoped<CompilerService>();
+builder.Services.AddSingleton<JobStore>();
 
 var app = builder.Build();
 
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
-
-// Endpoint diagnostyczny — sprawdź czy pliki są na miejscu
-app.MapGet("/api/diag", () =>
-{
-    var baseDir = AppContext.BaseDirectory;
-    var netFx48Dir = Path.Combine(baseDir, "NetFx48");
-    var zwcadDir = Path.Combine(baseDir, "Libraries", "Zwcad");
-
-    return Results.Ok(new
-    {
-        baseDir,
-        netFx48 = new
-        {
-            path = netFx48Dir,
-            exists = Directory.Exists(netFx48Dir),
-            dllCount = Directory.Exists(netFx48Dir)
-                ? Directory.GetFiles(netFx48Dir, "*.dll").Length : 0
-        },
-        zwcad = new
-        {
-            path = zwcadDir,
-            exists = Directory.Exists(zwcadDir),
-            files = Directory.Exists(zwcadDir)
-                ? Directory.GetFiles(zwcadDir, "*.dll").Select(Path.GetFileName).ToArray()
-                : []
-        }
-    });
-});
 
 app.Run();

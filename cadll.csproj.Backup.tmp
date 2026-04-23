@@ -12,15 +12,17 @@
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.16.0" />
-    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" GeneratePathProperty="true" />
-    <PackageReference Include="DocumentFormat.OpenXml.Framework" Version="3.5.1" GeneratePathProperty="true" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageReference Include="DocumentFormat.OpenXml.Framework" Version="3.5.1" />
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
+    <PackageReference Include="ExcelNumberFormat" Version="1.1.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" GeneratePathProperty="true">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
     <PackageReference Include="OpenAI" Version="2.*" />
     <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.7" />
   </ItemGroup>
@@ -52,23 +54,6 @@
     <Folder Include="Services\" />
     <Folder Include="Templates\Autocad\" />
   </ItemGroup>
-
-  <!-- Kopiuj dodatkowe biblioteki (netstandard2.0) do Libraries/Extra/ -->
-  <Target Name="CopyExtraLibs" AfterTargets="ResolvePackageAssets">
-    <ItemGroup>
-      <ExtraLibFiles Include="$(PkgDocumentFormat_OpenXml)\lib\net46\DocumentFormat.OpenXml.dll" />
-      <ExtraLibFiles Include="$(PkgDocumentFormat_OpenXml_Framework)\lib\net46\DocumentFormat.OpenXml.Framework.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(ExtraLibFiles)" DestinationFolder="$(OutDir)Libraries\Extra\" SkipUnchangedFiles="true" />
-  </Target>
-
-  <Target Name="CopyExtraLibsOnPublish" AfterTargets="Publish">
-    <ItemGroup>
-      <ExtraLibFilesPublish Include="$(PkgDocumentFormat_OpenXml)\lib\net46\DocumentFormat.OpenXml.dll" />
-      <ExtraLibFilesPublish Include="$(PkgDocumentFormat_OpenXml_Framework)\lib\net46\DocumentFormat.OpenXml.Framework.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(ExtraLibFilesPublish)" DestinationFolder="$(PublishDir)Libraries\Extra\" SkipUnchangedFiles="true" />
-  </Target>
 
   <!-- Kopiuj assemblies .NET Framework 4.8 do OutDir (build) -->
   <Target Name="CopyNetFx48Refs" AfterTargets="ResolvePackageAssets">

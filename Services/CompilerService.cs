@@ -10,6 +10,9 @@ public class CompilerService(ILogger<CompilerService> logger)
     private static readonly string NetFx48Dir =
         Path.Combine(AppContext.BaseDirectory, "NetFx48");
 
+    private static readonly string ExtraLibsDir =
+        Path.Combine(AppContext.BaseDirectory, "Libraries", "Extra");
+
     private static readonly HashSet<string> ExcludedAssemblies = new(StringComparer.OrdinalIgnoreCase)
     {
         "System.EnterpriseServices.Wrapper.dll",
@@ -64,10 +67,23 @@ public class CompilerService(ILogger<CompilerService> logger)
         var zwcadRefs = zwcadFiles
             .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
 
+        var extraFiles = Directory.Exists(ExtraLibsDir)
+            ? Directory.GetFiles(ExtraLibsDir, "*.dll")
+                .Where(IsManagedAssembly)
+                .ToList()
+            : [];
+
+        if (extraFiles.Count > 0)
+            logger.LogInformation("Extra libs: {Count} plików z {Dir}",
+                extraFiles.Count, ExtraLibsDir);
+
+        var extraRefs = extraFiles
+            .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
+
         var compilation = CSharpCompilation.Create(
             assemblyName: assemblyName,
             syntaxTrees: [syntaxTree],
-            references: [.. netFxRefs, .. zwcadRefs],
+            references: [.. netFxRefs, .. zwcadRefs, .. extraRefs],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
                 .WithOptimizationLevel(OptimizationLevel.Release)
                 .WithPlatform(Platform.X64)
