@@ -21,12 +21,12 @@ public class OpenAiService : CodeGeneratorBase, ICodeGeneratorService
         _logger.LogInformation("AI provider: OpenAI | model: {Model}", _model);
     }
 
-    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt)
+    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
     {
-        _logger.LogInformation("Generating [{Function}] using {Model}", functionName, _model);
+        _logger.LogInformation("Generating [{Function}] for {Platform} using {Model}", functionName, platform, _model);
         var messages = new List<ChatMessage>
         {
-            new SystemChatMessage(BuildSystemPrompt(functionName)),
+            new SystemChatMessage(BuildSystemPrompt(functionName, platform)),
             new UserChatMessage(BuildUserMessage(functionName, prompt))
         };
 

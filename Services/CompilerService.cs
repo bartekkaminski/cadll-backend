@@ -19,9 +19,9 @@ public class CompilerService(ILogger<CompilerService> logger)
         "System.EnterpriseServices.Thunk.dll",
     };
 
-    public Task<byte[]> CompileAsync(string sourceCode, string assemblyName)
+    public Task<byte[]> CompileAsync(string sourceCode, string assemblyName, string platform = "zwcad")
     {
-        LogEnvironment();
+        LogEnvironment(platform);
 
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
 
@@ -53,18 +53,19 @@ public class CompilerService(ILogger<CompilerService> logger)
         var netFxRefs = netFxFiles
             .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
 
-        var zwcadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", "Zwcad");
-        var zwcadFiles = Directory.Exists(zwcadDir)
-            ? Directory.GetFiles(zwcadDir, "*.dll").ToList()
+        var platformFolder = NormalizePlatformFolder(platform);
+        var cadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", platformFolder);
+        var cadFiles = Directory.Exists(cadDir)
+            ? Directory.GetFiles(cadDir, "*.dll").ToList()
             : [];
 
-        logger.LogInformation("ZWCAD DLL-ki: {Count} plików z {Dir}",
-            zwcadFiles.Count, zwcadDir);
+        logger.LogInformation("CAD [{Platform}] DLL-ki: {Count} plików z {Dir}",
+            platform, cadFiles.Count, cadDir);
 
-        foreach (var f in zwcadFiles)
-            logger.LogInformation("  ZWCAD ref: {File}", Path.GetFileName(f));
+        foreach (var f in cadFiles)
+            logger.LogInformation("  CAD ref: {File}", Path.GetFileName(f));
 
-        var zwcadRefs = zwcadFiles
+        var zwcadRefs = cadFiles
             .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
 
         var extraFiles = Directory.Exists(ExtraLibsDir)
@@ -122,9 +123,18 @@ public class CompilerService(ILogger<CompilerService> logger)
         return Task.FromResult(bytes);
     }
 
-    private void LogEnvironment()
+    private static string NormalizePlatformFolder(string platform) =>
+        platform.ToLowerInvariant() switch
+        {
+            "autocad"  => "Autocad",
+            "bricscad" => "Bricscad",
+            "gstarcad" => "Gstarcad",
+            _          => "Zwcad",
+        };
+
+    private void LogEnvironment(string platform)
     {
-        logger.LogInformation("=== ŚRODOWISKO KOMPILACJI ===");
+        logger.LogInformation("=== ŚRODOWISKO KOMPILACJI [platform={Platform}] ===", platform);
         logger.LogInformation("AppContext.BaseDirectory: {Dir}", AppContext.BaseDirectory);
         logger.LogInformation("NetFx48Dir: {Dir} | istnieje: {Exists}",
             NetFx48Dir, Directory.Exists(NetFx48Dir));
@@ -133,9 +143,9 @@ public class CompilerService(ILogger<CompilerService> logger)
             logger.LogInformation("NetFx48Dir — pliki: {Count}",
                 Directory.GetFiles(NetFx48Dir, "*.dll").Length);
 
-        var zwcadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", "Zwcad");
-        logger.LogInformation("ZwcadDir: {Dir} | istnieje: {Exists}",
-            zwcadDir, Directory.Exists(zwcadDir));
+        var cadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", NormalizePlatformFolder(platform));
+        logger.LogInformation("CadDir [{Platform}]: {Dir} | istnieje: {Exists}",
+            platform, cadDir, Directory.Exists(cadDir));
     }
 
     private static bool IsManagedAssembly(string path)

@@ -21,14 +21,14 @@ public class AnthropicService : CodeGeneratorBase, ICodeGeneratorService
         _logger.LogInformation("AI provider: Anthropic | model: {Model}", _model);
     }
 
-    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt)
+    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
     {
-        _logger.LogInformation("Generating [{Function}] using {Model}", functionName, _model);
+        _logger.LogInformation("Generating [{Function}] for {Platform} using {Model}", functionName, platform, _model);
         var response = await _client.Messages.Create(new MessageCreateParams
         {
             MaxTokens = 8192,
             Model = _model,
-            System = BuildSystemPrompt(functionName),
+            System = BuildSystemPrompt(functionName, platform),
             Messages =
             [
                 new() { Role = Role.User, Content = BuildUserMessage(functionName, prompt) }

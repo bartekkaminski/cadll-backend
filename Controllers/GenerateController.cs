@@ -24,8 +24,9 @@ public class GenerateController(
         if (string.IsNullOrWhiteSpace(request.Prompt))
             return BadRequest(new { error = "Prompt jest wymagany." });
 
+        var platform = string.IsNullOrWhiteSpace(request.Platform) ? "zwcad" : request.Platform.ToLowerInvariant();
         var jobId = jobs.Create();
-        logger.LogInformation(">>> Job {JobId} utworzony: funkcja={Name}", jobId, request.FunctionName);
+        logger.LogInformation(">>> Job {JobId} utworzony: funkcja={Name} platform={Platform}", jobId, request.FunctionName, platform);
 
         _ = Task.Run(async () =>
         {
@@ -37,7 +38,7 @@ public class GenerateController(
             try
             {
                 jobs.SetPhase(jobId, "generating");
-                code = await scopedAi.GenerateFunctionCodeAsync(request.FunctionName, request.Prompt);
+                code = await scopedAi.GenerateFunctionCodeAsync(request.FunctionName, request.Prompt, platform);
 
                 logger.LogInformation(
                     "=== WYGENEROWANY KOD [{Name}] ===\n{Code}\n=== KONIEC KODU ===",
@@ -49,7 +50,7 @@ public class GenerateController(
                 {
                     try
                     {
-                        var dll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName);
+                        var dll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                         logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — próba {Attempt}",
                             jobId, request.FunctionName, dll.Length, attempt);
                         jobs.SetDone(jobId, PackZip(dll, request.FunctionName, code));
@@ -72,7 +73,7 @@ public class GenerateController(
                     }
                 }
 
-                var finalDll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName);
+                var finalDll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                 logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — ostatnia próba",
                     jobId, request.FunctionName, finalDll.Length);
                 jobs.SetDone(jobId, PackZip(finalDll, request.FunctionName, code));
