@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.16.0" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net80" Version="1.8.5" />
+    <PackageReference Include="System.IO.Packaging" Version="8.0.1" GeneratePathProperty="true" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" GeneratePathProperty="true" />
     <PackageReference Include="DocumentFormat.OpenXml.Framework" Version="3.5.1" GeneratePathProperty="true" />
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
@@ -42,18 +44,31 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>Libraries/Zwcad/%(Filename)%(Extension)</Link>
     </Content>
+    <Content Include="Libraries\Autocad\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>Libraries/Autocad/%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="Libraries\Bricscad\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>Libraries/Bricscad/%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="Libraries\Gstarcad\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>Libraries/Gstarcad/%(Filename)%(Extension)</Link>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Data\" />
     <Folder Include="Libraries\Autocad\" />
+    <Folder Include="Libraries\Bricscad\" />
+    <Folder Include="Libraries\Gstarcad\" />
     <Folder Include="Libraries\Zwcad\" />
-    <Folder Include="Models\" />
-    <Folder Include="Services\" />
-    <Folder Include="Templates\Autocad\" />
   </ItemGroup>
 
-  <!-- Kopiuj dodatkowe biblioteki (netstandard2.0) do Libraries/Extra/ -->
+  <!-- Kopiuj dodatkowe biblioteki (net46) do Libraries/Extra/ — dla ZWCAD/AutoCAD/BricsCAD -->
   <Target Name="CopyExtraLibs" AfterTargets="ResolvePackageAssets">
     <ItemGroup>
       <ExtraLibFiles Include="$(PkgDocumentFormat_OpenXml)\lib\net46\DocumentFormat.OpenXml.dll" />
@@ -68,6 +83,25 @@
       <ExtraLibFilesPublish Include="$(PkgDocumentFormat_OpenXml_Framework)\lib\net46\DocumentFormat.OpenXml.Framework.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(ExtraLibFilesPublish)" DestinationFolder="$(PublishDir)Libraries\Extra\" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Kopiuj dodatkowe biblioteki (net8.0) do Libraries/Extra.NetCore/ — dla GstarCAD -->
+  <Target Name="CopyExtraLibsNetCore" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <ExtraLibFilesNetCore Include="$(PkgDocumentFormat_OpenXml)\lib\net8.0\DocumentFormat.OpenXml.dll" />
+      <ExtraLibFilesNetCore Include="$(PkgDocumentFormat_OpenXml_Framework)\lib\net8.0\DocumentFormat.OpenXml.Framework.dll" />
+      <ExtraLibFilesNetCore Include="$(PkgSystem_IO_Packaging)\lib\net8.0\System.IO.Packaging.dll" Condition="Exists('$(PkgSystem_IO_Packaging)\lib\net8.0\System.IO.Packaging.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ExtraLibFilesNetCore)" DestinationFolder="$(OutDir)Libraries\Extra.NetCore\" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyExtraLibsNetCoreOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <ExtraLibFilesNetCorePublish Include="$(PkgDocumentFormat_OpenXml)\lib\net8.0\DocumentFormat.OpenXml.dll" />
+      <ExtraLibFilesNetCorePublish Include="$(PkgDocumentFormat_OpenXml_Framework)\lib\net8.0\DocumentFormat.OpenXml.Framework.dll" />
+      <ExtraLibFilesNetCorePublish Include="$(PkgSystem_IO_Packaging)\lib\net8.0\System.IO.Packaging.dll" Condition="Exists('$(PkgSystem_IO_Packaging)\lib\net8.0\System.IO.Packaging.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ExtraLibFilesNetCorePublish)" DestinationFolder="$(PublishDir)Libraries\Extra.NetCore\" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- Kopiuj assemblies .NET Framework 4.8 do OutDir (build) -->

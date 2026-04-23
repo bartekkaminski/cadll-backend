@@ -35,14 +35,14 @@ public class OpenAiService : CodeGeneratorBase, ICodeGeneratorService
         return FixCommonMistakes(ExtractCodeBlock(text));
     }
 
-    public async Task<string> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors)
+    public async Task<string> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors, string platform)
     {
         var errorList = string.Join("\n", errors.Select((e, i) => $"{i + 1}. {e}"));
 
         var messages = new List<ChatMessage>
         {
-            new SystemChatMessage(
-                "You are a C# expert. Fix the compilation errors in the provided code. " +
+            new SystemChatMessage(BuildSystemPrompt("FIX", platform) +
+                "\n\nYour task now: fix compilation errors in the code below. " +
                 "Return ONLY the corrected code in a ```csharp block. No comments, no explanations."),
             new UserChatMessage(
                 $"The following C# code has compilation errors:\n\n```csharp\n{brokenCode}\n```\n\n" +

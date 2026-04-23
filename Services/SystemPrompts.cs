@@ -301,20 +301,20 @@ public static class SystemPrompts
         1. Przestrzeń nazw: cadll.Generated
         2. Nazwa klasy = Main, MUSI implementować IExtensionApplication
            (public class Main : IExtensionApplication) z metodami Initialize() i Terminate()
-        3. Jedna publiczna statyczna metoda z atrybutem [CommandMethod("{{functionName}}")]
+        3. Jedna publiczna statyczna metoda z atrybutem [Teigha.Runtime.CommandMethod("{{functionName}}")]
            i nazwą dokładnie {{functionName}}
-        4. OBOWIĄZKOWY zestaw using — BricsCAD używa Bricscad.* (aplikacja/runtime)
-           oraz Teigha.* (baza danych/geometria):
+           Klasa MUSI dziedziczyć po Teigha.Runtime.IExtensionApplication (NIE Bricscad.Runtime!)
+        4. OBOWIĄZKOWY zestaw using:
              using System;
              using System.Collections.Generic;
              using System.Linq;
              using Bricscad.ApplicationServices;
              using Bricscad.EditorInput;
-             using Bricscad.Runtime;
              using Teigha.Colors;
              using Teigha.DatabaseServices;
              using Teigha.Geometry;
              using Teigha.GraphicsInterface;
+             using Teigha.Runtime;
         5. Nie używaj jako nazw zmiennych słów kluczowych C# ani nazw typów BricsCAD API
            (Database, Document, Editor, Transaction, Entity, BlockTable, LayerTable itp.)
 
@@ -322,18 +322,22 @@ public static class SystemPrompts
         BricsCAD API — ZASADY I RÓŻNICE
         ════════════════════════════════════════
 
-        BricsCAD ma dwie przestrzenie nazw:
-          - Bricscad.*  — aplikacja, edytor, runtime (BrxMgd.dll)
-          - Teigha.*    — baza danych, encje, geometria (TD_Mgd.dll)
+        BricsCAD ma dwie przestrzenie nazw (dwa DLL-ki):
+          - Bricscad.*  — aplikacja, edytor (BrxMgd.dll)
+          - Teigha.*    — runtime, baza danych, encje, geometria (TD_Mgd.dll)
+
+        KRYTYCZNE: IExtensionApplication i [CommandMethod] są w Teigha.Runtime (NIE w Bricscad.Runtime)!
 
         Odpowiedniki AutoCAD → BricsCAD:
           - Autodesk.AutoCAD.ApplicationServices → Bricscad.ApplicationServices
           - Autodesk.AutoCAD.EditorInput         → Bricscad.EditorInput
-          - Autodesk.AutoCAD.Runtime             → Bricscad.Runtime
+          - Autodesk.AutoCAD.Runtime             → Teigha.Runtime
           - Autodesk.AutoCAD.DatabaseServices    → Teigha.DatabaseServices
           - Autodesk.AutoCAD.Geometry            → Teigha.Geometry
           - Autodesk.AutoCAD.Colors              → Teigha.Colors
           - Autodesk.AutoCAD.GraphicsInterface   → Teigha.GraphicsInterface
+
+        NIGDY nie używaj Bricscad.Runtime — IExtensionApplication i CommandMethod tam NIE ISTNIEJĄ.
 
         - Dostęp do dokumentu: Application.DocumentManager.MdiActiveDocument
         - MText.Contents zwraca string z treścią
@@ -345,15 +349,15 @@ public static class SystemPrompts
         using System.Linq;
         using Bricscad.ApplicationServices;
         using Bricscad.EditorInput;
-        using Bricscad.Runtime;
         using Teigha.Colors;
         using Teigha.DatabaseServices;
         using Teigha.Geometry;
         using Teigha.GraphicsInterface;
+        using Teigha.Runtime;
 
         namespace cadll.Generated
         {
-            public class Main : IExtensionApplication
+            public class Main : Teigha.Runtime.IExtensionApplication
             {
                 public void Initialize()
                 {
@@ -363,7 +367,7 @@ public static class SystemPrompts
 
                 public void Terminate() { }
 
-                [CommandMethod("{{functionName}}")]
+                [Teigha.Runtime.CommandMethod("{{functionName}}")]
                 public static void {{functionName}}()
                 {
                     Document doc = Application.DocumentManager.MdiActiveDocument;
@@ -405,17 +409,17 @@ public static class SystemPrompts
            (public class Main : IExtensionApplication) z metodami Initialize() i Terminate()
         3. Jedna publiczna statyczna metoda z atrybutem [CommandMethod("{{functionName}}")]
            i nazwą dokładnie {{functionName}}
-        4. OBOWIĄZKOWY zestaw using — GstarCAD używa przestrzeni GrxCAD.*:
+        4. OBOWIĄZKOWY zestaw using — GstarCAD używa przestrzeni Gssoft.Gscad.*:
              using System;
              using System.Collections.Generic;
              using System.Linq;
-             using GrxCAD.ApplicationServices;
-             using GrxCAD.Colors;
-             using GrxCAD.DatabaseServices;
-             using GrxCAD.EditorInput;
-             using GrxCAD.Geometry;
-             using GrxCAD.GraphicsInterface;
-             using GrxCAD.Runtime;
+             using Gssoft.Gscad.ApplicationServices;
+             using Gssoft.Gscad.Colors;
+             using Gssoft.Gscad.DatabaseServices;
+             using Gssoft.Gscad.EditorInput;
+             using Gssoft.Gscad.Geometry;
+             using Gssoft.Gscad.GraphicsInterface;
+             using Gssoft.Gscad.Runtime;
         5. Nie używaj jako nazw zmiennych słów kluczowych C# ani nazw typów GstarCAD API
            (Database, Document, Editor, Transaction, Entity, BlockTable, LayerTable itp.)
 
@@ -423,17 +427,19 @@ public static class SystemPrompts
         GstarCAD API — ZASADY I RÓŻNICE
         ════════════════════════════════════════
 
-        GstarCAD używa przestrzeni nazw GrxCAD.* (analogicznie do Autodesk.AutoCAD.*).
+        GstarCAD używa przestrzeni nazw Gssoft.Gscad.* (NIE GrxCAD.*, NIE Autodesk.AutoCAD.*).
 
         Odpowiedniki AutoCAD → GstarCAD:
-          - Autodesk.AutoCAD.ApplicationServices → GrxCAD.ApplicationServices
-          - Autodesk.AutoCAD.DatabaseServices    → GrxCAD.DatabaseServices
-          - Autodesk.AutoCAD.EditorInput         → GrxCAD.EditorInput
-          - Autodesk.AutoCAD.Geometry            → GrxCAD.Geometry
-          - Autodesk.AutoCAD.Colors              → GrxCAD.Colors
-          - Autodesk.AutoCAD.GraphicsInterface   → GrxCAD.GraphicsInterface
-          - Autodesk.AutoCAD.Runtime             → GrxCAD.Runtime
+          - Autodesk.AutoCAD.ApplicationServices → Gssoft.Gscad.ApplicationServices
+          - Autodesk.AutoCAD.DatabaseServices    → Gssoft.Gscad.DatabaseServices
+          - Autodesk.AutoCAD.EditorInput         → Gssoft.Gscad.EditorInput
+          - Autodesk.AutoCAD.Geometry            → Gssoft.Gscad.Geometry
+          - Autodesk.AutoCAD.Colors              → Gssoft.Gscad.Colors
+          - Autodesk.AutoCAD.GraphicsInterface   → Gssoft.Gscad.GraphicsInterface
+          - Autodesk.AutoCAD.Runtime             → Gssoft.Gscad.Runtime
 
+        - IExtensionApplication jest w Gssoft.Gscad.Runtime (GcDbMgd.dll)
+        - [CommandMethod] jest w Gssoft.Gscad.Runtime
         - Dostęp do dokumentu: Application.DocumentManager.MdiActiveDocument
         - MText.Contents zwraca string z treścią
 
@@ -442,13 +448,13 @@ public static class SystemPrompts
         using System;
         using System.Collections.Generic;
         using System.Linq;
-        using GrxCAD.ApplicationServices;
-        using GrxCAD.Colors;
-        using GrxCAD.DatabaseServices;
-        using GrxCAD.EditorInput;
-        using GrxCAD.Geometry;
-        using GrxCAD.GraphicsInterface;
-        using GrxCAD.Runtime;
+        using Gssoft.Gscad.ApplicationServices;
+        using Gssoft.Gscad.Colors;
+        using Gssoft.Gscad.DatabaseServices;
+        using Gssoft.Gscad.EditorInput;
+        using Gssoft.Gscad.Geometry;
+        using Gssoft.Gscad.GraphicsInterface;
+        using Gssoft.Gscad.Runtime;
 
         namespace cadll.Generated
         {

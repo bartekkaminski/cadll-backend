@@ -1,3 +1,4 @@
+using Basic.Reference.Assemblies;
 using cadll.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -13,6 +14,13 @@ public class CompilerService(ILogger<CompilerService> logger)
     private static readonly string ExtraLibsDir =
         Path.Combine(AppContext.BaseDirectory, "Libraries", "Extra");
 
+    private static readonly string ExtraLibsNetCoreDir =
+        Path.Combine(AppContext.BaseDirectory, "Libraries", "Extra.NetCore");
+
+    // GstarCAD używa .NET (Core), pozostałe platformy .NET Framework 4.8
+    private static readonly HashSet<string> NetCorePlatforms =
+        new(StringComparer.OrdinalIgnoreCase) { "gstarcad" };
+
     private static readonly HashSet<string> ExcludedAssemblies = new(StringComparer.OrdinalIgnoreCase)
     {
         "System.EnterpriseServices.Wrapper.dll",
@@ -25,7 +33,6 @@ public class CompilerService(ILogger<CompilerService> logger)
 
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
 
-        // Szybki pre-check składni — bez referencji, błyskawiczny
         var syntaxErrors = syntaxTree.GetDiagnostics()
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .Select(d => d.GetMessage())
@@ -38,20 +45,10 @@ public class CompilerService(ILogger<CompilerService> logger)
             throw new CompilationException(syntaxErrors);
         }
 
-        if (!Directory.Exists(NetFx48Dir))
-            throw new InvalidOperationException(
-                $"Brak katalogu NetFx48/ w: {NetFx48Dir}");
-
-        var netFxFiles = Directory.GetFiles(NetFx48Dir, "*.dll")
-            .Where(f => !ExcludedAssemblies.Contains(Path.GetFileName(f)))
-            .Where(IsManagedAssembly)
-            .ToList();
-
-        logger.LogInformation("NetFx48: {Count} managed assemblies załadowanych z {Dir}",
-            netFxFiles.Count, NetFx48Dir);
-
-        var netFxRefs = netFxFiles
-            .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
+        bool isNetCore = NetCorePlatforms.Contains(platform);
+        IEnumerable<MetadataReference> runtimeRefs = isNetCore
+            ? GetNetCoreRefs()
+            : GetNetFx48Refs();
 
         var platformFolder = NormalizePlatformFolder(platform);
         var cadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", platformFolder);
@@ -65,11 +62,12 @@ public class CompilerService(ILogger<CompilerService> logger)
         foreach (var f in cadFiles)
             logger.LogInformation("  CAD ref: {File}", Path.GetFileName(f));
 
-        var zwcadRefs = cadFiles
+        var cadRefs = cadFiles
             .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
 
-        var extraFiles = Directory.Exists(ExtraLibsDir)
-            ? Directory.GetFiles(ExtraLibsDir, "*.dll")
+        var extraDir = isNetCore ? ExtraLibsNetCoreDir : ExtraLibsDir;
+        var extraFiles = Directory.Exists(extraDir)
+            ? Directory.GetFiles(extraDir, "*.dll")
                 .Where(IsManagedAssembly)
                 .ToList()
             : [];
@@ -84,7 +82,7 @@ public class CompilerService(ILogger<CompilerService> logger)
         var compilation = CSharpCompilation.Create(
             assemblyName: assemblyName,
             syntaxTrees: [syntaxTree],
-            references: [.. netFxRefs, .. zwcadRefs, .. extraRefs],
+            references: [.. runtimeRefs, .. cadRefs, .. extraRefs],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
                 .WithOptimizationLevel(OptimizationLevel.Release)
                 .WithPlatform(Platform.X64)
@@ -123,6 +121,27 @@ public class CompilerService(ILogger<CompilerService> logger)
         return Task.FromResult(bytes);
     }
 
+    private IEnumerable<MetadataReference> GetNetFx48Refs()
+    {
+        if (!Directory.Exists(NetFx48Dir))
+            throw new InvalidOperationException($"Brak katalogu NetFx48/ w: {NetFx48Dir}");
+
+        var files = Directory.GetFiles(NetFx48Dir, "*.dll")
+            .Where(f => !ExcludedAssemblies.Contains(Path.GetFileName(f)))
+            .Where(IsManagedAssembly)
+            .ToList();
+
+        logger.LogInformation("NetFx48: {Count} managed assemblies z {Dir}", files.Count, NetFx48Dir);
+        return files.Select(f => (MetadataReference)MetadataReference.CreateFromFile(f));
+    }
+
+    private IEnumerable<MetadataReference> GetNetCoreRefs()
+    {
+        var refs = Net80.References.All;
+        logger.LogInformation(".NET 8 ref assemblies: {Count} (Basic.Reference.Assemblies.Net80)", refs.Length);
+        return refs;
+    }
+
     private static string NormalizePlatformFolder(string platform) =>
         platform.ToLowerInvariant() switch
         {
@@ -134,14 +153,10 @@ public class CompilerService(ILogger<CompilerService> logger)
 
     private void LogEnvironment(string platform)
     {
-        logger.LogInformation("=== ŚRODOWISKO KOMPILACJI [platform={Platform}] ===", platform);
+        bool isNetCore = NetCorePlatforms.Contains(platform);
+        logger.LogInformation("=== ŚRODOWISKO KOMPILACJI [platform={Platform}, runtime={Runtime}] ===",
+            platform, isNetCore ? ".NET Core" : ".NET Framework 4.8");
         logger.LogInformation("AppContext.BaseDirectory: {Dir}", AppContext.BaseDirectory);
-        logger.LogInformation("NetFx48Dir: {Dir} | istnieje: {Exists}",
-            NetFx48Dir, Directory.Exists(NetFx48Dir));
-
-        if (Directory.Exists(NetFx48Dir))
-            logger.LogInformation("NetFx48Dir — pliki: {Count}",
-                Directory.GetFiles(NetFx48Dir, "*.dll").Length);
 
         var cadDir = Path.Combine(AppContext.BaseDirectory, "Libraries", NormalizePlatformFolder(platform));
         logger.LogInformation("CadDir [{Platform}]: {Dir} | istnieje: {Exists}",

@@ -53,7 +53,7 @@ public class GenerateController(
                         var dll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                         logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — próba {Attempt}",
                             jobId, request.FunctionName, dll.Length, attempt);
-                        jobs.SetDone(jobId, PackZip(dll, request.FunctionName, code));
+                        jobs.SetDone(jobId, PackZip(dll, request.FunctionName, code, platform));
                         return;
                     }
                     catch (CompilationException ex) when (attempt < MaxRetries)
@@ -63,7 +63,7 @@ public class GenerateController(
                             jobId, attempt, MaxRetries, string.Join("\n", ex.Errors));
 
                         jobs.SetPhase(jobId, "fixing");
-                        code = await scopedAi.FixCodeAsync(code, ex.Errors);
+                        code = await scopedAi.FixCodeAsync(code, ex.Errors, platform);
 
                         logger.LogInformation(
                             "=== POPRAWIONY KOD [{Name}] (próba {Next}) ===\n{Code}\n=== KONIEC ===",
@@ -76,7 +76,7 @@ public class GenerateController(
                 var finalDll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                 logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — ostatnia próba",
                     jobId, request.FunctionName, finalDll.Length);
-                jobs.SetDone(jobId, PackZip(finalDll, request.FunctionName, code));
+                jobs.SetDone(jobId, PackZip(finalDll, request.FunctionName, code, platform));
             }
             catch (CompilationException ex)
             {
@@ -123,6 +123,12 @@ public class GenerateController(
     private static readonly string ExtraLibsDir =
         Path.Combine(AppContext.BaseDirectory, "Libraries", "Extra");
 
+    private static readonly string ExtraLibsNetCoreDir =
+        Path.Combine(AppContext.BaseDirectory, "Libraries", "Extra.NetCore");
+
+    private static readonly HashSet<string> NetCorePlatforms =
+        new(StringComparer.OrdinalIgnoreCase) { "gstarcad" };
+
     private const string AssemblyResolverSnippet = """
 
             AppDomain.CurrentDomain.AssemblyResolve += (s, a) =>
@@ -150,10 +156,12 @@ public class GenerateController(
         return code.Insert(bracePos + 1, AssemblyResolverSnippet);
     }
 
-    private static byte[] PackZip(byte[] dllBytes, string functionName, string sourceCode)
+    private static byte[] PackZip(byte[] dllBytes, string functionName, string sourceCode, string platform)
     {
         var includeOpenXml = sourceCode.Contains("DocumentFormat.OpenXml",
             StringComparison.OrdinalIgnoreCase);
+
+        var extraDir = NetCorePlatforms.Contains(platform) ? ExtraLibsNetCoreDir : ExtraLibsDir;
 
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
@@ -162,7 +170,7 @@ public class GenerateController(
             using (var entryStream = entry.Open())
                 entryStream.Write(dllBytes, 0, dllBytes.Length);
 
-            if (includeOpenXml && Directory.Exists(ExtraLibsDir))
+            if (includeOpenXml && Directory.Exists(extraDir))
             {
                 var openXmlLibs = new[]
                 {
@@ -171,7 +179,7 @@ public class GenerateController(
                 };
                 foreach (var name in openXmlLibs)
                 {
-                    var path = Path.Combine(ExtraLibsDir, name);
+                    var path = Path.Combine(extraDir, name);
                     if (!System.IO.File.Exists(path)) continue;
                     var libEntry = zip.CreateEntry($"Biblioteki/{name}", CompressionLevel.Fastest);
                     using (var libStream = libEntry.Open())
