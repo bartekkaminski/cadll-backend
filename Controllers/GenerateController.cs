@@ -2,6 +2,7 @@ using System.IO.Compression;
 using cadll.Models;
 using cadll.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace cadll.Controllers;
 
@@ -14,6 +15,7 @@ public class GenerateController(
     private const int MaxRetries = 2;
 
     [HttpPost("api/generate")]
+    [EnableRateLimiting("per-ip-daily")]
     public IActionResult Generate([FromBody] GenerateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.FunctionName))
