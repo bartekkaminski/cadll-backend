@@ -36,16 +36,12 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// CORS origins: env var CORS_ORIGINS (produkcja) lub appsettings.json (dev)
-var corsOrigins = (
-    Environment.GetEnvironmentVariable("CORS_ORIGINS")
-    ?? builder.Configuration["CorsOrigins"]
-    ?? "http://localhost:5199,https://cadll.pl,https://www.cadll.pl"
-).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
-        policy.WithOrigins(corsOrigins)
+        policy.WithOrigins(
+                  "http://localhost:5199",
+                  "https://cadll.pl",
+                  "https://www.cadll.pl")
               .AllowAnyHeader()
               .AllowAnyMethod()));
 
