@@ -21,7 +21,7 @@ public class OpenAiService : CodeGeneratorBase, ICodeGeneratorService
         _logger.LogInformation("AI provider: OpenAI | model: {Model}", _model);
     }
 
-    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
+    public async Task<CodeResult> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
     {
         _logger.LogInformation("Generating [{Function}] for {Platform} using {Model}", functionName, platform, _model);
         var messages = new List<ChatMessage>
@@ -31,11 +31,18 @@ public class OpenAiService : CodeGeneratorBase, ICodeGeneratorService
         };
 
         var response = await _chat.CompleteChatAsync(messages);
-        var text = response.Value.Content[0].Text;
-        return FixCommonMistakes(ExtractCodeBlock(text));
+        var calledAt = DateTime.UtcNow;
+        var usage = response.Value.Usage;
+        _logger.LogInformation(
+            "--- TOKENY [GenerateCode|{Function}] in={In} out={Out} | łącznie={Total}",
+            functionName, usage.InputTokenCount, usage.OutputTokenCount,
+            usage.InputTokenCount + usage.OutputTokenCount);
+
+        var code = FixCommonMistakes(ExtractCodeBlock(response.Value.Content[0].Text));
+        return new CodeResult(code, usage.InputTokenCount, usage.OutputTokenCount, _model, calledAt);
     }
 
-    public async Task<string> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors, string platform)
+    public async Task<CodeResult> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors, string platform)
     {
         var errorList = string.Join("\n", errors.Select((e, i) => $"{i + 1}. {e}"));
 
@@ -51,7 +58,14 @@ public class OpenAiService : CodeGeneratorBase, ICodeGeneratorService
         };
 
         var response = await _chat.CompleteChatAsync(messages);
-        var text = response.Value.Content[0].Text;
-        return FixCommonMistakes(ExtractCodeBlock(text));
+        var calledAt = DateTime.UtcNow;
+        var usage = response.Value.Usage;
+        _logger.LogInformation(
+            "--- TOKENY [FixCode|—] in={In} out={Out} | łącznie={Total}",
+            usage.InputTokenCount, usage.OutputTokenCount,
+            usage.InputTokenCount + usage.OutputTokenCount);
+
+        var code = FixCommonMistakes(ExtractCodeBlock(response.Value.Content[0].Text));
+        return new CodeResult(code, usage.InputTokenCount, usage.OutputTokenCount, _model, calledAt);
     }
 }

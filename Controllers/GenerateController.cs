@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using cadll.Data;
+using cadll.Data.Entities;
 using cadll.Models;
 using cadll.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +27,10 @@ public class GenerateController(
             return BadRequest(new { error = "Prompt jest wymagany." });
 
         var platform = string.IsNullOrWhiteSpace(request.Platform) ? "zwcad" : request.Platform.ToLowerInvariant();
+        var userIp = (HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+                      ?? HttpContext.Connection.RemoteIpAddress?.ToString()
+                      ?? "unknown").Split(',')[0].Trim();
+
         var jobId = jobs.Create();
         logger.LogInformation(">>> Job {JobId} utworzony: funkcja={Name} platform={Platform}", jobId, request.FunctionName, platform);
 
@@ -33,12 +39,63 @@ public class GenerateController(
             using var scope = scopeFactory.CreateScope();
             var scopedAi       = scope.ServiceProvider.GetRequiredService<ICodeGeneratorService>();
             var scopedCompiler = scope.ServiceProvider.GetRequiredService<CompilerService>();
+            var db             = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             string? code = null;
+            int totalIn = 0, totalOut = 0, aiCalls = 0;
+            var apiCallLog = new List<AiApiCall>();
+
+            void Accumulate(CodeResult r, string operation)
+            {
+                totalIn += r.InputTokens; totalOut += r.OutputTokens; aiCalls++;
+                apiCallLog.Add(new AiApiCall
+                {
+                    JobId        = Guid.Parse(jobId),
+                    Operation    = operation,
+                    AiModel      = r.AiModel,
+                    InputTokens  = r.InputTokens,
+                    OutputTokens = r.OutputTokens,
+                    ResponseCode = r.Code,
+                    CalledAt     = r.CalledAt,
+                });
+            }
+
+            async Task SaveToDb(string outcome, string? finalCode)
+            {
+                logger.LogInformation(
+                    "=== TOKENY SUMARYCZNIE [{Name}|{Outcome}] wywołań={Calls} in={In} out={Out} | łącznie={Total} ===",
+                    request.FunctionName, outcome, aiCalls, totalIn, totalOut, totalIn + totalOut);
+                try
+                {
+                    var job = new GenerationJob
+                    {
+                        Id                 = Guid.Parse(jobId),
+                        UserIp             = userIp,
+                        FunctionName       = request.FunctionName,
+                        Prompt             = request.Prompt,
+                        Platform           = platform,
+                        Outcome            = outcome,
+                        FinalCode          = finalCode,
+                        TotalAiCalls       = aiCalls,
+                        TotalInputTokens   = totalIn,
+                        TotalOutputTokens  = totalOut,
+                        AiApiCalls         = apiCallLog,
+                    };
+                    db.GenerationJobs.Add(job);
+                    await db.SaveChangesAsync();
+                }
+                catch (Exception dbEx)
+                {
+                    logger.LogError(dbEx, "Błąd zapisu do bazy dla Job {JobId}", jobId);
+                }
+            }
+
             try
             {
                 jobs.SetPhase(jobId, "generating");
-                code = await scopedAi.GenerateFunctionCodeAsync(request.FunctionName, request.Prompt, platform);
+                var genResult = await scopedAi.GenerateFunctionCodeAsync(request.FunctionName, request.Prompt, platform);
+                Accumulate(genResult, "GenerateCode");
+                code = genResult.Code;
 
                 logger.LogInformation(
                     "=== WYGENEROWANY KOD [{Name}] ===\n{Code}\n=== KONIEC KODU ===",
@@ -53,6 +110,7 @@ public class GenerateController(
                         var dll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                         logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — próba {Attempt}",
                             jobId, request.FunctionName, dll.Length, attempt);
+                        await SaveToDb("sukces", code);
                         jobs.SetDone(jobId, PackZip(dll, request.FunctionName, code, platform));
                         return;
                     }
@@ -63,7 +121,9 @@ public class GenerateController(
                             jobId, attempt, MaxRetries, string.Join("\n", ex.Errors));
 
                         jobs.SetPhase(jobId, "fixing");
-                        code = await scopedAi.FixCodeAsync(code, ex.Errors, platform);
+                        var fixResult = await scopedAi.FixCodeAsync(code, ex.Errors, platform);
+                        Accumulate(fixResult, "FixCode");
+                        code = fixResult.Code;
 
                         logger.LogInformation(
                             "=== POPRAWIONY KOD [{Name}] (próba {Next}) ===\n{Code}\n=== KONIEC ===",
@@ -76,6 +136,7 @@ public class GenerateController(
                 var finalDll = await scopedCompiler.CompileAsync(PrepareForCompilation(code), request.FunctionName, platform);
                 logger.LogInformation("<<< Job {JobId} sukces: {Name}.dll ({Size} B) — ostatnia próba",
                     jobId, request.FunctionName, finalDll.Length);
+                await SaveToDb("sukces", code);
                 jobs.SetDone(jobId, PackZip(finalDll, request.FunctionName, code, platform));
             }
             catch (CompilationException ex)
@@ -83,11 +144,13 @@ public class GenerateController(
                 logger.LogWarning(
                     "<<< Job {JobId} błąd kompilacji po {Max} próbach:\n{Errors}",
                     jobId, MaxRetries, string.Join("\n", ex.Errors));
+                await SaveToDb("błąd-kompilacji", null);
                 jobs.SetError(jobId, "Błąd kompilacji.", ex.Errors);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "<<< Job {JobId} nieoczekiwany błąd", jobId);
+                await SaveToDb("błąd", null);
                 jobs.SetError(jobId, ex.Message);
             }
         });

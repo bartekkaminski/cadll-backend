@@ -21,7 +21,7 @@ public class AnthropicService : CodeGeneratorBase, ICodeGeneratorService
         _logger.LogInformation("AI provider: Anthropic | model: {Model}", _model);
     }
 
-    public async Task<string> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
+    public async Task<CodeResult> GenerateFunctionCodeAsync(string functionName, string prompt, string platform)
     {
         _logger.LogInformation("Generating [{Function}] for {Platform} using {Model}", functionName, platform, _model);
         var response = await _client.Messages.Create(new MessageCreateParams
@@ -35,11 +35,13 @@ public class AnthropicService : CodeGeneratorBase, ICodeGeneratorService
             ]
         });
 
-        var text = ExtractText(response);
-        return FixCommonMistakes(ExtractCodeBlock(text));
+        var calledAt = DateTime.UtcNow;
+        LogUsage("GenerateCode", functionName, response);
+        var code = FixCommonMistakes(ExtractCodeBlock(ExtractText(response)));
+        return new CodeResult(code, (int)response.Usage.InputTokens, (int)response.Usage.OutputTokens, _model, calledAt);
     }
 
-    public async Task<string> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors, string platform)
+    public async Task<CodeResult> FixCodeAsync(string brokenCode, IReadOnlyList<string> errors, string platform)
     {
         var errorList = string.Join("\n", errors.Select((e, i) => $"{i + 1}. {e}"));
 
@@ -62,8 +64,20 @@ public class AnthropicService : CodeGeneratorBase, ICodeGeneratorService
             ]
         });
 
-        var text = ExtractText(response);
-        return FixCommonMistakes(ExtractCodeBlock(text));
+        var calledAt = DateTime.UtcNow;
+        LogUsage("FixCode", "—", response);
+        var code = FixCommonMistakes(ExtractCodeBlock(ExtractText(response)));
+        return new CodeResult(code, (int)response.Usage.InputTokens, (int)response.Usage.OutputTokens, _model, calledAt);
+    }
+
+    private void LogUsage(string operation, string context, Message response)
+    {
+        var u = response.Usage;
+        _logger.LogInformation(
+            "--- TOKENY [{Op}|{Ctx}] in={In} out={Out} | łącznie={Total}",
+            operation, context,
+            u.InputTokens, u.OutputTokens,
+            u.InputTokens + u.OutputTokens);
     }
 
     private static string ExtractText(Message response)

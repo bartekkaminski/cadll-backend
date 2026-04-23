@@ -1,7 +1,9 @@
 using System.Threading.RateLimiting;
+using cadll.Data;
 using cadll.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 Env.Load();
 
@@ -61,7 +63,14 @@ builder.Services.AddScoped<ICodeGeneratorService>(sp =>
 builder.Services.AddScoped<CompilerService>();
 builder.Services.AddSingleton<JobStore>();
 
+var connStr = Environment.GetEnvironmentVariable("DBConnectionString")
+    ?? throw new InvalidOperationException("Missing environment variable DBConnectionString.");
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseNpgsql(connStr));
+
 var app = builder.Build();
+
+// Tabele tworzone ręcznie SQL-em — brak automatycznej migracji
 
 app.UseCors();
 app.UseRateLimiter();
